@@ -67,7 +67,7 @@ extend, rather than needing a schema change.
 | 11 | ML / AI agent orchestration | `agent_mcp` | MLModel, Agent, Dataset | train, infer, evaluate, orchestrate | This repo's own `gamedesign.py` sits adjacent to this layer (re-narrates results, doesn't train models) |
 | 12 | Instrumentation & metrology | `instrument_mcp` | Sensor, Instrument, Calibration | calibrate, measure, monitor | -- |
 | 13 | Binder/ligand design (external) | n/a -- external MCP | Protein, Binder | design, dock, validate | `bindcraft_mcp` (BindCraft, via ProteinMCP/MacromNex) |
-| 14 | Spatial digital-twin & visualization | n/a -- substrate, not a "lab" | DigitalTwin, Scene | render, export, sync | `uag_exporter.py` (OpenUSD -> Omniverse/NanoVer/Unreal/Unity) |
+| 14 | Spatial digital-twin & visualization | n/a -- substrate, not a "lab" | DigitalTwin, Scene | render, export, sync, control (live mode only) | `uag_exporter.py` (`mode: "export"`, OpenUSD -> Omniverse/NanoVer/Unreal/Unity); Unity MCP Server and UNIGINE MCPBridge Plugin (`mode: "live"`, direct in-editor control -- see §7) |
 | 15 | Gamification / narrative layer | n/a -- substrate, sits on top of Knowledge | PlayableArtifact (see §4) | narrate, score | `generate_game_design` -- explicitly qFoldIT's own layer, not a lab domain itself (see NOTICE-style framing in §9) |
 
 Rows 14-15 are intentionally **not** "labs" -- they're substrate/derived
@@ -236,22 +236,59 @@ belongs_to    Operation     -> Experiment
 measured_by   Object        -> Measurement
 derived_from  Knowledge     -> Measurement | Experiment
 cites         Knowledge | Experiment -> (external reference, DOI/URL)
-materializes  Object        -> DigitalTwin     (spatial/OpenUSD form)
+materializes  Object        -> DigitalTwin     (spatial form -- see "mode" below)
 narrates      Knowledge | Experiment -> PlayableArtifact  (gamification layer, one-directional, read-only)
 ```
+
+`materializes` carries a `mode` attribute distinguishing two genuinely
+different integration patterns, both valid, not interchangeable:
+
+- `mode: "export"` -- **one-directional**, snapshot -> scene. The
+  `DigitalTwin` is written once from an `Object.State` and the engine
+  has no path back to the graph. Reference implementation:
+  `uag_exporter.py`'s `export_to_openusd` / `export_pdb_to_openusd`
+  (OpenUSD -> Omniverse / NanoVer VR -- both consume OpenUSD as an
+  import format, not live).
+- `mode: "live"` -- **bidirectional**, an actual running MCP server
+  inside the target engine's editor that can both receive UAG state
+  and report edits back as new `Operation`s. Two concrete,
+  independently-verified implementations exist today:
+  - **Unity MCP Server** (official, part of Unity AI Beta, requires
+    Unity 6.0+; free/included for Pro/Enterprise/Industry, a paid
+    add-on for Personal edition; does not itself consume Unity AI
+    credits) -- `docs.unity3d.com/Packages/com.unity.ai.assistant.../
+    unity-mcp-get-started.html`.
+  - **UNIGINE MCPBridge Plugin** (free, official UNIGINE Add-On Store,
+    v2.21 for SDK 2.21) -- runs its MCP server built into the Editor
+    itself, no external proxy; exposes 27 tools covering primitive/
+    template/asset-based node creation, transform/clone/reparent,
+    materials and surface masks, component attachment, XML export/
+    import, console commands, and batch operations with undo/redo --
+    `store.unigine.com/en/add-on/1f1237c6-234c-6f20-8dee-b35a5bf2dc28/
+    description`.
+  A `mode: "live"` materialization means an `Operation` performed
+  inside the engine (a designer dragging a node in the Unity/UNIGINE
+  editor) can itself be logged back into UAG via `performed_by` (§5's
+  `Agent` would be `kind: "human"`, operating through that engine's
+  MCP) -- something `mode: "export"` cannot do.
 
 Two materializations of the same UAG subgraph are expected to coexist
 without conflict:
 
 - **Spatial materialization**: `Object.State` (atom coordinates, a PDB,
   a crystal lattice) -> `DigitalTwin` via a `materializes` edge ->
-  rendered as an OpenUSD scene (`uag_exporter.py` in this codebase is
-  a concrete implementation of this edge for molecular structures).
+  rendered as an OpenUSD scene (`mode: "export"`, e.g.
+  `uag_exporter.py`) or driven live inside an engine's own editor
+  (`mode: "live"`, e.g. Unity MCP Server or UNIGINE MCPBridge).
 - **Narrative materialization**: `Knowledge`/`Experiment` ->
   `PlayableArtifact` via a `narrates` edge -> a game design document
   (`generate_game_design` is a concrete implementation of this edge).
   This edge is explicitly one-directional and non-authoritative: a
   `PlayableArtifact` never feeds back into scientific `Knowledge`.
+  (Note the asymmetry with `materializes`: `narrates` has no `mode:
+  "live"` equivalent by design -- gamification output should never
+  write back into scientific Knowledge, whereas an engine's own
+  editor legitimately can write back new Operations.)
 
 This is also where "Object + Operation + Result = New State" (v1.0's
 closing line) becomes precise: a `Result` is an `Operation`'s output
@@ -297,7 +334,8 @@ shared world:
 | Domain MCP (#2, chemoinformatics) | `predict_admet_profile` / ZairaChem wrapper |
 | Domain MCP (#7, quantum) | `predict_peptide_quantum_vqe`, `predict_structure_quantum_walk` |
 | External domain MCP (#13) | `bindcraft_mcp` (BindCraft via ProteinMCP/MacromNex) |
-| Spatial materialization (§7) | `uag_exporter.py` (`export_to_openusd`, `export_pdb_to_openusd`) |
+| Spatial materialization (§7) | `uag_exporter.py` (`export_to_openusd`, `export_pdb_to_openusd`) -- `mode: "export"` |
+| Spatial materialization, live mode (§7) | Unity MCP Server (official, Unity 6.0+) and UNIGINE MCPBridge Plugin (free, official Add-On Store) -- `mode: "live"`, bidirectional in-editor control |
 | Narrative materialization (§7) | `generate_game_design` |
 | `references[]` field (§6) | Already the pattern this repo's own `CITATION.cff` had to be corrected into after the fact (Neil Voss / Virtual-Lab-Simulation, ZairaChem's real authors/DOI) -- v1.1 makes that a schema field, not just a document convention |
 
