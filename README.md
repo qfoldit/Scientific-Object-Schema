@@ -1,4 +1,4 @@
-# Scientific World Schema v1.0
+# Scientific World Schema
 
 Scientific World Schema is the foundation layer for a persistent
 scientific multiplayer world.
