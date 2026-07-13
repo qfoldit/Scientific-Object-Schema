@@ -67,7 +67,7 @@ extend, rather than needing a schema change.
 | 11 | ML / AI agent orchestration | `agent_mcp` | MLModel, Agent, Dataset | train, infer, evaluate, orchestrate | This repo's own `gamedesign.py` sits adjacent to this layer (re-narrates results, doesn't train models) |
 | 12 | Instrumentation & metrology | `instrument_mcp` | Sensor, Instrument, Calibration | calibrate, measure, monitor | -- |
 | 13 | Binder/ligand design (external) | n/a -- external MCP | Protein, Binder | design, dock, validate | `bindcraft_mcp` (BindCraft, via ProteinMCP/MacromNex) |
-| 14 | Spatial digital-twin & visualization | n/a -- substrate, not a "lab" | DigitalTwin, Scene | render, export, sync, control (live mode only) | `uag_exporter.py` (`mode: "export"`, OpenUSD -> Omniverse/NanoVer/Unreal/Unity); Unity MCP Server and UNIGINE MCPBridge Plugin (`mode: "live"`, direct in-editor control -- see §7) |
+| 14 | Spatial digital-twin & visualization | n/a -- substrate, not a "lab" | DigitalTwin, Scene | render, export, sync, control (live mode only) | `uag_exporter.py` (`mode: "export"`, OpenUSD -> Omniverse/NanoVer/Unreal/Unity/UNIGINE); Unity MCP Server, Unreal MCP, and UNIGINE MCPBridge Plugin (`mode: "live"`, direct in-editor control -- each with its own client-support caveats, see §7) |
 | 15 | Gamification / narrative layer | n/a -- substrate, sits on top of Knowledge | PlayableArtifact (see §4) | narrate, score | `generate_game_design` -- explicitly qFoldIT's own layer, not a lab domain itself (see NOTICE-style framing in §9) |
 
 Rows 14-15 are intentionally **not** "labs" -- they're substrate/derived
@@ -251,21 +251,68 @@ different integration patterns, both valid, not interchangeable:
   import format, not live).
 - `mode: "live"` -- **bidirectional**, an actual running MCP server
   inside the target engine's editor that can both receive UAG state
-  and report edits back as new `Operation`s. Two concrete,
-  independently-verified implementations exist today:
+  and report edits back as new `Operation`s. Four engines were checked
+  directly against their own docs/store listings (2026-07-12); each
+  has a genuinely different integration shape -- treat none of these
+  as interchangeable with another:
   - **Unity MCP Server** (official, part of Unity AI Beta, requires
     Unity 6.0+; free/included for Pro/Enterprise/Industry, a paid
     add-on for Personal edition; does not itself consume Unity AI
-    credits) -- `docs.unity3d.com/Packages/com.unity.ai.assistant.../
-    unity-mcp-get-started.html`.
+    credits) -- confirmed via `docs.unity3d.com/Packages/
+    com.unity.ai.assistant.../unity-mcp-get-started.html`, including
+    its exact Claude-Desktop-style client config (a relay binary at
+    `~/.unity/relay/`). This is the **primary** `mode: "live"` target
+    for Unity in this ecosystem (`unity-experience-builder` in
+    `qfoldit/skills` authors its workflows against this server's own
+    tool set by default, e.g. `Unity_ManageGameObject`). A separate,
+    independent **community** project, `CoplayDev/unity-mcp` ("MCP for
+    Unity", MIT-licensed, explicitly not affiliated with Unity
+    Technologies), serves only as a **fallback** for Unity <6.0 or
+    projects without the AI Assistant package -- it has a different
+    default config key (`unityMCP` vs. the official `unity-mcp`) and a
+    different tool set, so a workflow authored against one does not
+    run unmodified against the other.
   - **UNIGINE MCPBridge Plugin** (free, official UNIGINE Add-On Store,
     v2.21 for SDK 2.21) -- runs its MCP server built into the Editor
     itself, no external proxy; exposes 27 tools covering primitive/
     template/asset-based node creation, transform/clone/reparent,
     materials and surface masks, component attachment, XML export/
     import, console commands, and batch operations with undo/redo --
-    `store.unigine.com/en/add-on/1f1237c6-234c-6f20-8dee-b35a5bf2dc28/
-    description`.
+    confirmed via a screenshot of the live store listing on
+    2026-07-12 (`store.unigine.com/en/add-on/1f1237c6-234c-6f20-8dee-
+    b35a5bf2dc28/description`). Installation writes a project-root
+    `.mcp.json` automatically -- this is **Claude Code's** project-
+    scoped MCP convention, not Claude Desktop's global config, so this
+    integration is used by opening the UNIGINE project directory in
+    Claude Code, not by a manual `claude_desktop_config.json` entry.
+  - **Unreal MCP** (official, plugin id `ModelContextProtocol`, shipped
+    Experimental in Unreal Engine 5.8 by Epic Games) -- confirmed via
+    `dev.epicgames.com/documentation/unreal-engine/unreal-mcp-in-
+    unreal-editor`. Embeds a local HTTP MCP server in the Editor
+    process; requires a sibling `AllToolsets` plugin for actual tools
+    (spawn actors, materials, Slate widgets, automation tests, and
+    more via Unreal's ToolsetRegistry). Epic's own documented
+    generated-client-config targets are Claude Code, Cursor, VS Code,
+    Gemini, Codex, and "All" -- **Claude Desktop is not among them** as
+    of this check. A separate, independent, EXPERIMENTAL **community**
+    project, `chongdashu/unreal-mcp` (Python-based, not affiliated
+    with Epic Games), does document a Claude-Desktop-style manual
+    config and can be used as a substitute for Desktop-based workflows.
+  - **Omniverse -- narrower, not general-purpose**: `NVIDIA-Omniverse/
+    kit-usd-agents` is real and official but is a set of *developer/
+    coding-assistance* MCP servers (Kit extension search, USD API/
+    class/method docs, code examples) for someone writing Omniverse
+    extension code -- **not** a scene-editing bridge comparable to the
+    three above (no "spawn a prim here" tool). The closest real
+    equivalents to a live scene-editing bridge in the Omniverse family
+    are narrower still: an NVIDIA-forum-documented Isaac Sim MCP setup
+    (robotics-focused) and RTX Remix's own official MCP Server (scoped
+    specifically to the RTX Remix Toolkit, not general Kit). For
+    getting a molecule/protein scene into Omniverse at all, `mode:
+    "export"` via `uag_exporter.py` remains the correct, general path
+    -- Omniverse opens `.usda` natively; there is no verified general
+    `mode: "live"` bridge for arbitrary Omniverse Kit scenes as of this
+    check.
   A `mode: "live"` materialization means an `Operation` performed
   inside the engine (a designer dragging a node in the Unity/UNIGINE
   editor) can itself be logged back into UAG via `performed_by` (§5's
@@ -335,7 +382,8 @@ shared world:
 | Domain MCP (#7, quantum) | `predict_peptide_quantum_vqe`, `predict_structure_quantum_walk` |
 | External domain MCP (#13) | `bindcraft_mcp` (BindCraft via ProteinMCP/MacromNex) |
 | Spatial materialization (§7) | `uag_exporter.py` (`export_to_openusd`, `export_pdb_to_openusd`) -- `mode: "export"` |
-| Spatial materialization, live mode (§7) | Unity MCP Server (official, Unity 6.0+) and UNIGINE MCPBridge Plugin (free, official Add-On Store) -- `mode: "live"`, bidirectional in-editor control |
+| Spatial materialization, live mode (§7) | Unity MCP Server (official, Unity 6.0+, Claude-Desktop-documented), Unreal MCP (official, UE 5.8, Claude Code/Cursor/VSC/Gemini/Codex only -- not Claude Desktop), UNIGINE MCPBridge Plugin (official, auto-configures Claude Code's project `.mcp.json`) -- `mode: "live"`, bidirectional in-editor control, each with a different client-support surface |
+| Spatial materialization, coding-assistance (not live scene control) | `NVIDIA-Omniverse/kit-usd-agents` -- official, but answers API/extension questions rather than editing a running scene; not a `materializes` implementation in the same sense as the row above |
 | Narrative materialization (§7) | `generate_game_design` |
 | `references[]` field (§6) | Already the pattern this repo's own `CITATION.cff` had to be corrected into after the fact (Neil Voss / Virtual-Lab-Simulation, ZairaChem's real authors/DOI) -- v1.1 makes that a schema field, not just a document convention |
 
