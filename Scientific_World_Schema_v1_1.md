@@ -37,7 +37,7 @@ five concrete gaps show up:
 | 2 | "Who performs actions" is stated as a goal, but no `Agent` object is ever defined | No way to attribute an action to a human, an AI agent, or a robot; no permissions model for a multiplayer world |
 | 3 | Object taxonomy covers 9 types (Protein, DNA, RNA, Cell, Organism, Material, Robot, Planet, Ecosystem) | Missing Molecule/Ligand, Enzyme, Antibody, Plasmid, GeneticCircuit, Tissue/Organoid, Crystal, Polymer, Instrument, Sensor, Dataset, MLModel, Reaction, QuantumCircuit, DigitalTwin, Knowledge/Claim |
 | 4 | `Experiment Schema` has no provenance/citation/license/uncertainty/safety fields | Every MCP would reinvent its own ad-hoc way of tracking where a result came from -- exactly the kind of gap that caused fabricated-citation risk in earlier, document-level-only citation tracking |
-| 5 | UAG (Universal Assembly Graph) is named elsewhere as "the foundation" but never formally defined in this schema | Nothing to actually implement -- "foundation" needs node/edge types, not a name |
+| 5 | A graph substrate is named elsewhere as "the foundation" (UAG) but never formally defined at the scientific-activity level in this schema | Nothing to actually implement -- "foundation" needs node/edge types, not a name. NOTE: this gap's fix (§7) originally reused the name "UAG" for a *different, broader* graph than the one that name already refers to in `claude-skills/skills/game-designer/references/uag_schema.md` -- see §7's disambiguation note for the correction. |
 | 6 | `MCP Integration` gives 2 illustrative examples (Protein MCP, Materials MCP), no general contract | Every new domain MCP would integrate differently, breaking interoperability |
 | 7 | Domain coverage misses robotics/lab-automation, instrumentation/metrology, astronomy/planetary, agriculture, and ML/agent-orchestration | Real deployed labs in those areas have nothing to plug into |
 
@@ -54,25 +54,28 @@ extend, rather than needing a schema change.
 
 | # | Domain | Representative MCP (naming convention: `<domain>_mcp`) | Primary Objects | Primary Operations (domain vocabulary, see §3) | Real-world example already in this ecosystem |
 |---|---|---|---|---|---|
-| 1 | Structural & molecular biology | `protein_mcp`, `nucleic_mcp` | Protein, DNA, RNA, Complex, Binder | fold, design, mutate, dock, optimize, validate | This repo's `protein_design_mcp` (RFdiffusion, Boltz-2, PyRosetta) |
+| 1 | Structural & molecular biology | `protein_mcp`, `nucleic_mcp` | Protein, DNA, RNA, Complex, Binder | fold, design, mutate, dock, optimize, validate | `qfoldit/Protein-Design-MCP` (RFdiffusion, Boltz-2, PyRosetta) |
 | 2 | Chemoinformatics & drug discovery | `chem_mcp` | Molecule, Reaction, ADMETProfile | synthesize, screen, predict, characterize | `predict_admet_profile` / ZairaChem |
 | 3 | Synthetic biology | `synbio_mcp` | Plasmid, GeneticCircuit, CRISPRGuide, Strain | assemble, transform, express, culture, evolve | -- (not yet built here) |
 | 4 | Materials science | `materials_mcp` | Crystal, Polymer, Alloy, Composite | synthesize, anneal, characterize, simulate | -- (mentioned, not yet built) |
 | 5 | Cell & tissue biology | `cellbio_mcp` | Cell, Tissue, Organoid | culture, differentiate, image, measure | -- |
 | 6 | Ecology & environmental science | `ecology_mcp` | Ecosystem, Population, Environment | simulate, perturb, monitor, evolve | -- |
-| 7 | Quantum computing & physics simulation | `quantum_mcp`, `physics_mcp` | QuantumCircuit, Field, Simulation | simulate, optimize, measure | This repo's `predict_peptide_quantum_vqe` / `predict_structure_quantum_walk` (QuPepFold / QFold-inspired) |
+| 7 | Quantum computing & physics simulation | `quantum_mcp`, `physics_mcp` | QuantumCircuit, Field, Simulation | simulate, optimize, measure | `qfoldit/Protein-Design-MCP`'s `predict_peptide_quantum_vqe` / `predict_structure_quantum_walk` (QuPepFold / QFold-inspired) |
 | 8 | Robotics & lab automation | `robotics_mcp` | Robot, Instrument, Protocol | control, calibrate, dispense, monitor | -- |
 | 9 | Astronomy & planetary science | `planetary_mcp` | Planet, Orbit, Atmosphere | simulate, observe, predict | -- (Planet already an Object in v1.0, no MCP defined) |
 | 10 | Agriculture & plant science | `agri_mcp` | Organism (plant), Crop, Field(site) | grow (L-system), breed, monitor, optimize | v1.0's L-system section |
-| 11 | ML / AI agent orchestration | `agent_mcp` | MLModel, Agent, Dataset | train, infer, evaluate, orchestrate | This repo's own `gamedesign.py` sits adjacent to this layer (re-narrates results, doesn't train models) |
+| 11 | ML / AI agent orchestration | `agent_mcp` | MLModel, Agent, Dataset | train, infer, evaluate, orchestrate | `qfoldit/Protein-Design-MCP`'s own `gamedesign.py` sits adjacent to this layer (re-narrates results, doesn't train models) |
 | 12 | Instrumentation & metrology | `instrument_mcp` | Sensor, Instrument, Calibration | calibrate, measure, monitor | -- |
 | 13 | Binder/ligand design (external) | n/a -- external MCP | Protein, Binder | design, dock, validate | `bindcraft_mcp` (BindCraft, via ProteinMCP/MacromNex) |
-| 14 | Spatial digital-twin & visualization | n/a -- substrate, not a "lab" | DigitalTwin, Scene | render, export, sync, control (live mode only) | `uag_exporter.py` (`mode: "export"`, OpenUSD -> Omniverse/NanoVer/Unreal/Unity/UNIGINE); Unity MCP Server, Unreal MCP, and UNIGINE MCPBridge Plugin (`mode: "live"`, direct in-editor control -- each with its own client-support caveats, see §7) |
+| 14 | Spatial digital-twin & visualization | n/a -- substrate, not a "lab" | DigitalTwin, Scene | render, export, sync, control (live mode only) | `uag_exporter.py` (`mode: "export"`, OpenUSD -> Omniverse/NanoVer/Unreal/Unity/UNIGINE); Unity MCP Server, Unreal MCP, UNIGINE MCPBridge Plugin, and community UEFN bridges (`mode: "live"`, direct in-editor control -- each with its own client-support/official-vs-community caveats, see §7) |
+| 16 | Multiplayer gamification distribution | n/a -- qFoldIT's own product layer, not a "lab" | PlayableArtifact, DigitalTwin | narrate, export, control (live mode, editor-scene only) | `generate_game_design` (narrates edge) + `uefn-fortnite-world-builder` skill (community UEFN bridge, `mode: "live"`) -- Fortnite/UEFN specifically chosen as the multiplayer distribution vehicle since, unlike single-player browser demos (`molecular-tetris`), a published Fortnite island is inherently multiplayer at scale. Scope limit: this bridge authors the editor scene only -- it does not touch Fortnite's Verse/Device gameplay layer or publish the island (see that skill's own scope note) |
 | 15 | Gamification / narrative layer | n/a -- substrate, sits on top of Knowledge | PlayableArtifact (see §4) | narrate, score | `generate_game_design` -- explicitly qFoldIT's own layer, not a lab domain itself (see NOTICE-style framing in §9) |
 
-Rows 14-15 are intentionally **not** "labs" -- they're substrate/derived
-layers that consume UAG (row 14 materializes it spatially, row 15
-re-narrates it as game structure). Listing them here prevents someone
+Rows 14-16 are intentionally **not** "labs" -- they're substrate/derived
+layers that consume the graph substrate (row 14 materializes it
+spatially, row 15 re-narrates it as game structure, row 16 does both --
+narrates *and* materializes live, specifically for multiplayer
+distribution). Listing them here prevents someone
 from accidentally trying to model a `render` operation as if it were a
 scientific measurement.
 
@@ -126,7 +129,12 @@ domain-specific meaning):
 
 ---
 
-## 4. Object Taxonomy extension (closes gap #3)
+## 4. Object Taxonomy extension (closes gap #3) -- a.k.a. SOS (Scientific Object Schema)
+
+A confirmed architecture reference (2026-07-14) names this taxonomy
+**SOS (Scientific Object Schema)**, labeled "Data Specification" --
+the canonical model of scientific objects that both SKG and SEM (§7)
+are built on top of.
 
 Added to v1.0's existing 9 types (Protein, DNA, RNA, Cell, Organism,
 Material, Robot, Planet, Ecosystem):
@@ -206,7 +214,7 @@ results. Extended with:
 ```
 
 The `references[]` field is the structural fix for a real failure
-mode this project already ran into: earlier work on this codebase had
+mode the qFoldIT ecosystem already ran into: earlier work in `qfoldit/Protein-Design-MCP` had
 to manually verify (and once, correct) fabricated-looking citations
 *after the fact*, in docstrings and CITATION.cff, because there was no
 place in the *data* to require a reference at authoring time. Making
@@ -216,14 +224,68 @@ instead of a plausible-sounding but unverified sentence in a docstring.
 
 ---
 
-## 7. UAG (Universal Assembly Graph) -- formal definition (closes gap #5)
+## 7. Scientific Knowledge Graph (SKG) + Scientific Execution Model (SEM) -- formal definition (closes gap #5)
 
-UAG is the graph substrate every domain MCP writes into and every
-consumer (VR world, knowledge queries, gamification layer) reads from.
-It is a typed property graph:
+**Naming history, stated plainly (two corrections in sequence):**
 
-**Node types:** `Object` (a specific State snapshot), `Operation`,
-`Experiment`, `Agent`, `Measurement`, `Knowledge`.
+1. An early draft called this graph "UAG (Universal Assembly Graph)" --
+   but that name already belongs to a real, different, narrower,
+   pre-existing format: the engine-neutral **3D scene graph** defined
+   in `claude-skills/skills/game-designer/references/uag_schema.md`
+   (node types `mesh`/`light`/`camera`/`trigger_volume`/etc., with
+   `connections`/`constraints`/`interactions`, validated by
+   `claude-skills/skills/game-designer/scripts/uag_validate.py`). That
+   UAG is real, tested, and already in active use by six engine-adapter
+   skills -- it is not renamed or altered by anything below.
+2. The next draft renamed the broader graph to "SAG (Scientific
+   Assembly Graph)" as a single, undifferentiated node/edge model. A
+   subsequent architecture reference (`qFoldIT Components` /
+   `Runtime Mapping`, confirmed 2026-07-14) established that qFoldIT's
+   actual naming splits this into **two** named components instead of
+   one, matching a real distinction worth keeping separate: the
+   *static relational/semantic structure* (what relates to what) vs.
+   the *dynamic execution/protocol layer* (what can be done, and how it
+   unfolds over time). This document adopts that split:
+
+- **SKG (Scientific Knowledge Graph)** -- "Semantic Graph." Relations
+  between objects, experiments, and knowledge. Node types: `Object` (a
+  specific State snapshot), `Experiment` (as a container/context),
+  `Measurement`, `Knowledge`. Edge types: `part_of`, `derived_from`,
+  `cites`, `measured_by`, `materializes`, `narrates` (defined below).
+  This is "the world state as a graph you can query."
+- **SEM (Scientific Execution Model)** -- "Executable Model."
+  Protocols, workflows, constraints, and experiment telemetry. This is
+  §3's Operation taxonomy (core + domain-namespaced verbs), §5's
+  `Agent` schema (who can perform which operations), and §6's
+  `Experiment` protocol/constraint/replicate/safety fields -- the
+  *process* definition, as opposed to SKG's *state* representation.
+  Every `Operation` an `Agent` performs, once executed, writes its
+  `produced_by`/`derived_from` result back into the SKG as new `Object`
+  state -- SEM generates events; SKG stores the resulting graph.
+
+Also per that same reference: **SOS (Scientific Object Schema)** is the
+official name for §4's Object taxonomy (the "Data Specification" layer
+underneath both SKG and SEM -- what an `Object`'s `type`/`properties`/
+`state`/`relationships`/`capabilities` actually look like), and **UWI
+(Universal World Interface)** names a *target, not-yet-built*
+abstraction discussed in §7.5 below.
+
+The relationship between SKG/SEM and UAG remains simple and
+non-competing: an SKG `Object.State`'s `materializes` edge (below)
+produces a `DigitalTwin` node, and when that DigitalTwin targets a game
+engine, its *content* is exactly a UAG document per the existing,
+unmodified `uag_schema.md` -- UAG is the concrete payload format for
+one specific SKG node type, not a competing top-level graph.
+
+Together, SKG + SEM form the graph substrate every domain MCP writes
+into and every consumer (VR world, knowledge queries, gamification
+layer) reads from. Treated as one combined typed property graph for
+the node/edge definitions below (most domain MCPs will implement both
+halves together in practice):
+
+**Node types:** `Object` (a specific State snapshot, SKG), `Operation`
+(SEM), `Experiment` (both -- container in SKG, protocol in SEM),
+`Agent` (SEM), `Measurement` (SKG), `Knowledge` (SKG).
 
 **Edge types:**
 
@@ -250,8 +312,8 @@ different integration patterns, both valid, not interchangeable:
   (OpenUSD -> Omniverse / NanoVer VR -- both consume OpenUSD as an
   import format, not live).
 - `mode: "live"` -- **bidirectional**, an actual running MCP server
-  inside the target engine's editor that can both receive UAG state
-  and report edits back as new `Operation`s. Four engines were checked
+  inside the target engine's editor that can both receive SKG state
+  and report edits back as new `Operation`s (an SEM concept). Four engines were checked
   directly against their own docs/store listings (2026-07-12); each
   has a genuinely different integration shape -- treat none of these
   as interchangeable with another:
@@ -315,11 +377,11 @@ different integration patterns, both valid, not interchangeable:
     check.
   A `mode: "live"` materialization means an `Operation` performed
   inside the engine (a designer dragging a node in the Unity/UNIGINE
-  editor) can itself be logged back into UAG via `performed_by` (§5's
+  editor) can itself be logged back into SEM via `performed_by` (§5's
   `Agent` would be `kind: "human"`, operating through that engine's
   MCP) -- something `mode: "export"` cannot do.
 
-Two materializations of the same UAG subgraph are expected to coexist
+Two materializations of the same SKG subgraph are expected to coexist
 without conflict:
 
 - **Spatial materialization**: `Object.State` (atom coordinates, a PDB,
@@ -341,35 +403,85 @@ This is also where "Object + Operation + Result = New State" (v1.0's
 closing line) becomes precise: a `Result` is an `Operation`'s output
 `Object.State`, and the graph edge recording that is `produced_by`.
 
+### 7.5. UWI (Universal World Interface) -- a named TARGET, not yet built
+
+A confirmed architecture reference (2026-07-14) names a sixth
+component, **UWI (Universal World Interface)**, explicitly labeled
+"Target Specification" (as opposed to UAG's "Runtime DSL," which is
+labeled as an *existing* format) -- described as a unified abstract API
+for interacting with game engines, simulators, and labs, via gRPC/
+Protobuf, with a proposed method set like `SpawnObject`, `ApplyGraph`,
+`GetState`, `StreamEvents`.
+
+**This does not exist today, and this document does not pretend
+otherwise.** Independently verified (2026-07-12 through 2026-07-14)
+against each engine's own docs/repos: Unity MCP Server, Unreal MCP,
+UNIGINE MCPBridge, and the community UEFN bridges each expose their
+*own*, mutually-different tool surfaces (`Unity_ManageGameObject` vs.
+Unreal's Blueprint/Actor toolsets vs. UNIGINE's 27 node/material/XML
+tools vs. UEFN's `spawn_actor`/`set_actor_transform`) -- none of them
+implement a shared `SpawnObject`/`ApplyGraph`/`GetState`/`StreamEvents`
+contract, and no evidence of one being built by any of those projects
+was found. A `mode: "live"` `materializes` edge (§7 above) today always
+means "one specific engine's bespoke tool calls," not "a UWI call."
+
+**What UWI would concretely be, if built:** a thin, qFoldIT-authored
+translation shim per engine -- e.g. a `uwi_unity_adapter.py` that
+receives a generic `SpawnObject` request and translates it into the
+correct `Unity_ManageGameObject` call, and likewise one adapter per
+engine -- sitting *between* a domain MCP and each engine's real
+`mode: "live"` bridge. This is a reasonable, buildable target (each
+adapter is a small, mechanical translation layer over an already-
+verified-real API), but it is future work, not a claim about the
+current state of any engine skill in this ecosystem. Treat any mention
+of "UWI" elsewhere as referring to this target, not a working system.
+
+### Runtime Reality Check (vs. the `qFoldIT Components` / `Runtime Mapping` reference)
+
+That reference's Runtime Mapping table shows a checkmark for every
+component (SOS/SKG/SEM/UAG/UWI/MCP) across 11 runtimes. This document
+only asserts what was independently verified; treat unchecked rows as
+"not yet independently confirmed," not "confirmed absent."
+
+| Runtime | SOS/SKG/SEM | UAG (`mode: "export"`, via `uag_exporter.py`) | UAG (`mode: "live"` engine bridge) | UWI |
+|---|---|---|---|---|
+| Unity | Applies generically (any domain MCP) | N/A (not an OpenUSD target) | ✅ Official Unity MCP Server (verified); ⚠️ community CoplayDev/unity-mcp fallback | ❌ not built |
+| Unreal Engine | Applies generically | ✅ opens `.usda` | ✅ Official Unreal MCP, UE 5.8 (verified) -- Claude Code/Cursor/VSC/Gemini/Codex only | ❌ not built |
+| UNIGINE | Applies generically | ✅ opens `.usda` | ✅ Official MCPBridge Plugin (verified) -- Claude Code via project `.mcp.json` | ❌ not built |
+| NVIDIA Omniverse | Applies generically | ✅ opens `.usda` natively | ⚠️ `kit-usd-agents` is coding-assistance only (verified) -- no general live scene-editing MCP found | ❌ not built |
+| Fortnite/UEFN | Applies generically | ✅ opens `.usda` (Fortnite/UEFN's underlying Unreal base supports USD import) | ✅ Community bridges only (verified) -- no Epic-published UEFN MCP exists today | ❌ not built |
+| Blender | Applies generically | ✅ opens `.usda` (native USD I/O) | **Not independently verified in this pass** -- Blender has a large addon ecosystem; a live MCP bridge plausibly exists but wasn't checked here | ❌ not built |
+| Labster, LabVIEW, ROS2, NI DAQ, Physical Sensors | Applies generically (SOS/SKG/SEM don't require a 3D scene) | N/A or unclear (some of these have no natural "3D scene" concept -- matches the source diagram's own UAG column showing "--" for LabVIEW/ROS2/NI DAQ/Physical Sensors) | **Not independently verified in this pass** | ❌ not built |
+
 ---
 
 ## 8. MCP Integration Contract (closes gap #6 -- generalizes v1.0's 2 examples)
 
-Any domain MCP -- whether built in this repo or external (like
+Any domain MCP -- whether built in `qfoldit/Protein-Design-MCP` or external (like
 `bindcraft_mcp`) -- must satisfy this contract to participate in the
 shared world:
 
 1. **Object conformance**: every input/output must be a v1.1 Object
    type, or a domain-namespaced extension (`materials.Alloy`) declared
    in that MCP's own schema file.
-2. **UAG logging**: every tool call that performs an Operation must be
+2. **SEM logging**: every tool call that performs an Operation must be
    able to emit the `{agent, core_verb, domain_verb, inputs, outputs,
    experiment, timestamp}` record from §3.2 -- whether it writes
    directly to a shared graph store or returns it for a caller to log.
 3. **Result envelope**: every tool result is JSON with, at minimum,
    `{"status": "ok" | "error" | "unavailable" | "not_configured",
    "data": {...}, "references": [...]}`. This is not new -- it's the
-   same convention already used throughout this codebase's
+   same convention already used throughout `qfoldit/Protein-Design-MCP`'s
    `predict_admet_profile` (`not_configured` per endpoint, never a
    fabricated score) and `predict_peptide_quantum_vqe` (`unavailable`
    if the quantum backend isn't installed, never a crash).
 4. **Spatial bridge**: any tool producing 3D/spatial output should be
    exportable through a shared `materializes`-edge-compatible bridge
-   (this repo's `uag_exporter.export_pdb_to_openusd` is the reference
+   (`qfoldit/Protein-Design-MCP`'s `uag_exporter.export_pdb_to_openusd` is the reference
    implementation) rather than a one-off, domain-specific exporter.
 5. **Naming convention**: `<domain>_mcp` for the server, `verb_object`
    for tools (`design_binder`, `predict_structure`, `fold_protein`),
-   matching this repo's existing convention.
+   matching `qfoldit/Protein-Design-MCP`'s existing convention.
 
 ---
 
@@ -377,15 +489,17 @@ shared world:
 
 | Schema concept | Concrete implementation already in this ecosystem |
 |---|---|
-| Domain MCP (#1, structural biology) | `protein_design_mcp` (this repo) |
+| Domain MCP (#1, structural biology) | `protein_design_mcp` (`qfoldit/Protein-Design-MCP`) |
 | Domain MCP (#2, chemoinformatics) | `predict_admet_profile` / ZairaChem wrapper |
 | Domain MCP (#7, quantum) | `predict_peptide_quantum_vqe`, `predict_structure_quantum_walk` |
 | External domain MCP (#13) | `bindcraft_mcp` (BindCraft via ProteinMCP/MacromNex) |
 | Spatial materialization (§7) | `uag_exporter.py` (`export_to_openusd`, `export_pdb_to_openusd`) -- `mode: "export"` |
-| Spatial materialization, live mode (§7) | Unity MCP Server (official, Unity 6.0+, Claude-Desktop-documented), Unreal MCP (official, UE 5.8, Claude Code/Cursor/VSC/Gemini/Codex only -- not Claude Desktop), UNIGINE MCPBridge Plugin (official, auto-configures Claude Code's project `.mcp.json`) -- `mode: "live"`, bidirectional in-editor control, each with a different client-support surface |
+| Spatial materialization, live mode (§7) | Unity MCP Server (official, Unity 6.0+, Claude-Desktop-documented), Unreal MCP (official, UE 5.8, Claude Code/Cursor/VSC/Gemini/Codex only -- not Claude Desktop), UNIGINE MCPBridge Plugin (official, auto-configures Claude Code's project `.mcp.json`), UEFN community bridges (KirChuvakov/uefn-mcp-server, MIT; quangdang46/uefn-verse-mcp, AGPL -- neither affiliated with Epic Games) -- `mode: "live"`, bidirectional in-editor control, each with a different client-support surface |
+| UWI (§7.5) | No implementation anywhere in this ecosystem as of 2026-07-14 -- a named target for a future unifying gRPC shim over the engines above, not a claim about current state |
+| Multiplayer gamification distribution (§2 row 16) | `generate_game_design` + `uefn-fortnite-world-builder` skill -- see that row's own scope-limit note (authors the editor scene, doesn't publish/wire gameplay) |
 | Spatial materialization, coding-assistance (not live scene control) | `NVIDIA-Omniverse/kit-usd-agents` -- official, but answers API/extension questions rather than editing a running scene; not a `materializes` implementation in the same sense as the row above |
 | Narrative materialization (§7) | `generate_game_design` |
-| `references[]` field (§6) | Already the pattern this repo's own `CITATION.cff` had to be corrected into after the fact (Neil Voss / Virtual-Lab-Simulation, ZairaChem's real authors/DOI) -- v1.1 makes that a schema field, not just a document convention |
+| `references[]` field (§6) | Already the pattern `qfoldit/Protein-Design-MCP`'s own `CITATION.cff` had to be corrected into after the fact (Neil Voss / Virtual-Lab-Simulation, ZairaChem's real authors/DOI) -- v1.1 makes that a schema field, not just a document convention |
 
 **One explicit framing note, consistent with how this ecosystem has
 handled attribution so far:** `generate_game_design`'s `PlayableArtifact`
@@ -399,10 +513,10 @@ any upstream tool or paper claims.
 
 ## Appendix: v1.0 source documents (for reference)
 
-The two uploaded documents (`README_EN.md` and
-`Scientific_World_Schema_v1.0.md`) remain the base layer this document
-extends; nothing above removes or contradicts their core model, JSON
-examples (parametric organism, L-system), or the `Future Layers` note
-(`Schema -> Runtime -> MCP -> Simulation -> VR World`) -- §7-8 above are
-the concrete content for the "MCP" and "Simulation" stages of that
-pipeline.
+The two original v1.0 documents this extends are archived in this
+same repository at `archive/v1.0/README_EN.md` and
+`archive/v1.0/Scientific_World_Schema_v1.0.md`. Nothing above removes
+or contradicts their core model, JSON examples (parametric organism,
+L-system), or the `Future Layers` note (`Schema -> Runtime -> MCP ->
+Simulation -> VR World`) -- §7-8 above are the concrete content for the
+"MCP" and "Simulation" stages of that pipeline.
