@@ -403,7 +403,7 @@ This is also where "Object + Operation + Result = New State" (v1.0's
 closing line) becomes precise: a `Result` is an `Operation`'s output
 `Object.State`, and the graph edge recording that is `produced_by`.
 
-### 7.5. UWI (Universal World Interface) -- a named TARGET, not yet built
+### 7.5. UWI (Universal World Interface) -- translation layer built; live cross-engine invocation still isn't
 
 A confirmed architecture reference (2026-07-14) names a sixth
 component, **UWI (Universal World Interface)**, explicitly labeled
@@ -413,45 +413,75 @@ for interacting with game engines, simulators, and labs, via gRPC/
 Protobuf, with a proposed method set like `SpawnObject`, `ApplyGraph`,
 `GetState`, `StreamEvents`.
 
-**This does not exist today, and this document does not pretend
-otherwise.** Independently verified (2026-07-12 through 2026-07-14)
-against each engine's own docs/repos: Unity MCP Server, Unreal MCP,
-UNIGINE MCPBridge, and the community UEFN bridges each expose their
-*own*, mutually-different tool surfaces (`Unity_ManageGameObject` vs.
-Unreal's Blueprint/Actor toolsets vs. UNIGINE's 27 node/material/XML
-tools vs. UEFN's `spawn_actor`/`set_actor_transform`) -- none of them
-implement a shared `SpawnObject`/`ApplyGraph`/`GetState`/`StreamEvents`
-contract, and no evidence of one being built by any of those projects
-was found. A `mode: "live"` `materializes` edge (§7 above) today always
-means "one specific engine's bespoke tool calls," not "a UWI call."
+**Updated status:** `qfoldit/Protein-Design-MCP`'s `src/protein_design_mcp/uwi.py`
+now implements a real translation layer for `SpawnObject`, `ApplyGraph`,
+and `GetState` (exposed as the `uwi_spawn_object` / `uwi_apply_graph`
+MCP tools), plus an honest `StreamEvents` finding (below). Two things
+are true at once, and both need to be said precisely:
 
-**What UWI would concretely be, if built:** a thin, qFoldIT-authored
-translation shim per engine -- e.g. a `uwi_unity_adapter.py` that
-receives a generic `SpawnObject` request and translates it into the
-correct `Unity_ManageGameObject` call, and likewise one adapter per
-engine -- sitting *between* a domain MCP and each engine's real
-`mode: "live"` bridge. This is a reasonable, buildable target (each
-adapter is a small, mechanical translation layer over an already-
-verified-real API), but it is future work, not a claim about the
-current state of any engine skill in this ecosystem. Treat any mention
-of "UWI" elsewhere as referring to this target, not a working system.
+1. **What's real:** given a generic call (e.g. "spawn a mesh at
+   position X on engine Y"), `uwi.py` returns the *exact* tool name and
+   arguments to invoke on that engine's real, already-connected MCP
+   server -- with an explicit `confidence` field (`verified` /
+   `best_effort` / `unsupported`) so a caller knows how much to trust
+   each mapping rather than getting a uniform-looking answer that
+   hides which engines were actually checked at the API-signature
+   level (only UEFN's `spawn_actor`/`get_project_info`/`get_level_info`
+   are `verified`; Unity/Unreal/UNIGINE mappings are `best_effort` --
+   the *capability* was confirmed via each engine's own docs, but not
+   the exact tool/parameter name, so a caller should confirm via that
+   engine's own `tools/list` before relying on it). `uwi_apply_graph`
+   further decomposes a whole UAG document into an ordered sequence of
+   these translations (parents before children), plus an honest,
+   per-engine report of which UAG `connections`/`constraints`/
+   `interactions` categories have no dedicated tool at all (mirroring
+   each engine skill's own SKILL.md gap notes, e.g. UEFN's Verse/Device
+   layer being entirely out of scope).
+2. **What's still not real:** this translation layer does **not**
+   itself hold a live connection to Unity/Unreal/UNIGINE/UEFN's MCP
+   servers, and does not invoke their tools. The calling agent still
+   has to take the returned `{tool_name, arguments}` spec and make the
+   actual call on that engine's own connected MCP server -- because an
+   MCP server has no built-in way to reach into a *different* MCP
+   server's tool-call channel without also acting as that other
+   server's client. A true "one call does it live on any engine"
+   proxy would mean this process holding simultaneous client
+   connections to four other MCP servers -- a distinct, larger,
+   not-yet-attempted project. `uwi.py`'s own module docstring states
+   this scope limit explicitly, so it isn't rediscovered as a surprise
+   later.
+
+**`StreamEvents` -- an honest negative result, not a placeholder:**
+no evidence was found, across any of the four engines' own docs/repos
+checked in this pass, of an event-streaming tool. `uwi_stream_events`
+returns `confidence: "unsupported"` for all four rather than guessing
+a plausible-sounding tool name -- this is a genuine finding (nothing
+to translate to), not unfinished work.
+
+A `mode: "live"` `materializes` edge (§7 above) today still always
+means "one specific engine's bespoke tool calls, now with a known
+translation available for SpawnObject/GetState/ApplyGraph" -- not "an
+autonomous UWI call that reaches the engine by itself."
 
 ### Runtime Reality Check (vs. the `qFoldIT Components` / `Runtime Mapping` reference)
 
 That reference's Runtime Mapping table shows a checkmark for every
 component (SOS/SKG/SEM/UAG/UWI/MCP) across 11 runtimes. This document
 only asserts what was independently verified; treat unchecked rows as
-"not yet independently confirmed," not "confirmed absent."
+"not yet independently confirmed," not "confirmed absent." The UWI
+column below reflects `uwi.py`'s translation layer (§7.5) specifically
+-- 🟡 means "SpawnObject/GetState translation implemented, confidence
+noted; StreamEvents honestly unsupported," not "fully live."
 
-| Runtime | SOS/SKG/SEM | UAG (`mode: "export"`, via `uag_exporter.py`) | UAG (`mode: "live"` engine bridge) | UWI |
+| Runtime | SOS/SKG/SEM | UAG (`mode: "export"`, via `uag_exporter.py`) | UAG (`mode: "live"` engine bridge) | UWI (`uwi.py` translation layer) |
 |---|---|---|---|---|
-| Unity | Applies generically (any domain MCP) | N/A (not an OpenUSD target) | ✅ Official Unity MCP Server (verified); ⚠️ community CoplayDev/unity-mcp fallback | ❌ not built |
-| Unreal Engine | Applies generically | ✅ opens `.usda` | ✅ Official Unreal MCP, UE 5.8 (verified) -- Claude Code/Cursor/VSC/Gemini/Codex only | ❌ not built |
-| UNIGINE | Applies generically | ✅ opens `.usda` | ✅ Official MCPBridge Plugin (verified) -- Claude Code via project `.mcp.json` | ❌ not built |
-| NVIDIA Omniverse | Applies generically | ✅ opens `.usda` natively | ⚠️ `kit-usd-agents` is coding-assistance only (verified) -- no general live scene-editing MCP found | ❌ not built |
-| Fortnite/UEFN | Applies generically | ✅ opens `.usda` (Fortnite/UEFN's underlying Unreal base supports USD import) | ✅ Community bridges only (verified) -- no Epic-published UEFN MCP exists today | ❌ not built |
-| Blender | Applies generically | ✅ opens `.usda` (native USD I/O) | **Not independently verified in this pass** -- Blender has a large addon ecosystem; a live MCP bridge plausibly exists but wasn't checked here | ❌ not built |
-| Labster, LabVIEW, ROS2, NI DAQ, Physical Sensors | Applies generically (SOS/SKG/SEM don't require a 3D scene) | N/A or unclear (some of these have no natural "3D scene" concept -- matches the source diagram's own UAG column showing "--" for LabVIEW/ROS2/NI DAQ/Physical Sensors) | **Not independently verified in this pass** | ❌ not built |
+| Unity | Applies generically (any domain MCP) | N/A (not an OpenUSD target) | ✅ Official Unity MCP Server (verified); ⚠️ community CoplayDev/unity-mcp fallback | 🟡 SpawnObject/GetState: `best_effort` (tool name not API-verified, confirm via `tools/list`); StreamEvents: `unsupported` |
+| Unreal Engine | Applies generically | ✅ opens `.usda` | ✅ Official Unreal MCP, UE 5.8 (verified) -- Claude Code/Cursor/VSC/Gemini/Codex only | 🟡 SpawnObject/GetState: `best_effort` (`tool_name` intentionally `None`, confirm via `tools/list`); StreamEvents: `unsupported` |
+| UNIGINE | Applies generically | ✅ opens `.usda` | ✅ Official MCPBridge Plugin (verified) -- Claude Code via project `.mcp.json` | 🟡 SpawnObject/GetState: `best_effort` (`tool_name` intentionally `None`, confirm via `tools/list`); StreamEvents: `unsupported` |
+| NVIDIA Omniverse | Applies generically | ✅ opens `.usda` natively | ⚠️ `kit-usd-agents` is coding-assistance only (verified) -- no general live scene-editing MCP found | N/A -- no scene-control MCP exists to translate to; `uwi.py` has no Omniverse adapter |
+| Fortnite/UEFN | Applies generically | ✅ opens `.usda` (Fortnite/UEFN's underlying Unreal base supports USD import) | ✅ Community bridges only (verified) -- no Epic-published UEFN MCP exists today | ✅ SpawnObject/GetState: `verified` (confirmed against KirChuvakov/uefn-mcp-server's own tool list); StreamEvents: `unsupported` |
+| Blender | Applies generically | ✅ opens `.usda` (native USD I/O) | **Not independently verified in this pass** -- Blender has a large addon ecosystem; a live MCP bridge plausibly exists but wasn't checked here | Not implemented in `uwi.py` |
+| Labster, LabVIEW, ROS2, NI DAQ, Physical Sensors | Applies generically (SOS/SKG/SEM don't require a 3D scene) | N/A or unclear (some of these have no natural "3D scene" concept -- matches the source diagram's own UAG column showing "--" for LabVIEW/ROS2/NI DAQ/Physical Sensors) | **Not independently verified in this pass** | Not implemented in `uwi.py` -- no natural "spawn object" concept for most of these |
 
 ---
 
@@ -495,7 +525,7 @@ shared world:
 | External domain MCP (#13) | `bindcraft_mcp` (BindCraft via ProteinMCP/MacromNex) |
 | Spatial materialization (§7) | `uag_exporter.py` (`export_to_openusd`, `export_pdb_to_openusd`) -- `mode: "export"` |
 | Spatial materialization, live mode (§7) | Unity MCP Server (official, Unity 6.0+, Claude-Desktop-documented), Unreal MCP (official, UE 5.8, Claude Code/Cursor/VSC/Gemini/Codex only -- not Claude Desktop), UNIGINE MCPBridge Plugin (official, auto-configures Claude Code's project `.mcp.json`), UEFN community bridges (KirChuvakov/uefn-mcp-server, MIT; quangdang46/uefn-verse-mcp, AGPL -- neither affiliated with Epic Games) -- `mode: "live"`, bidirectional in-editor control, each with a different client-support surface |
-| UWI (§7.5) | No implementation anywhere in this ecosystem as of 2026-07-14 -- a named target for a future unifying gRPC shim over the engines above, not a claim about current state |
+| UWI (§7.5) | `qfoldit/Protein-Design-MCP`'s `src/protein_design_mcp/uwi.py` (`uwi_spawn_object`, `uwi_apply_graph`, `uwi_get_state`, `uwi_stream_events` MCP tools) -- a real translation layer (verified for UEFN, best_effort for Unity/Unreal/UNIGINE, honestly `unsupported` for StreamEvents everywhere). Still not a live cross-engine invocation system -- the calling agent makes the actual call on the target engine's own connected MCP server using the returned spec. |
 | Multiplayer gamification distribution (§2 row 16) | `generate_game_design` + `uefn-fortnite-world-builder` skill -- see that row's own scope-limit note (authors the editor scene, doesn't publish/wire gameplay) |
 | Spatial materialization, coding-assistance (not live scene control) | `NVIDIA-Omniverse/kit-usd-agents` -- official, but answers API/extension questions rather than editing a running scene; not a `materializes` implementation in the same sense as the row above |
 | Narrative materialization (§7) | `generate_game_design` |
